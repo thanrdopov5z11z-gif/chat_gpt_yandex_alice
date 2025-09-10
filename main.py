@@ -19,8 +19,11 @@ SYSTEM_PROMPT = os.getenv(
     "Говори очень кратко и понятно (1–2 предложения), без длинных списков и преамбул."
 )
 
-# --- вспомогательное: аккуратно вызвать gpt.aquery независимо от того, async он или нет
+
 async def call_gpt(prompt: str) -> str:
+    """
+    Аккуратно вызывает gpt.aquery независимо от того, async он или sync.
+    """
     fn = getattr(gpt, "aquery", None)
     if fn is None:
         raise RuntimeError("В модуле gpt нет функции aquery(prompt)")
@@ -29,9 +32,11 @@ async def call_gpt(prompt: str) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, fn, prompt)
 
+
 @app.get("/health")
 async def health():
     return {"ok": True}
+
 
 @app.post("/post")
 async def post(request: Request):
@@ -41,14 +46,14 @@ async def post(request: Request):
     except Exception:
         return JSONResponse(
             {"version": "1.0", "response": {"end_session": False, "text": "Повтори, пожалуйста."}},
-            status_code=200
+            status_code=200,
         )
 
     # 2) базовый каркас ответа Алисы
     res = {
         "version": req.get("version", "1.0"),
         "session": req.get("session", {}),
-        "response": {"end_session": False, "text": "Секунду…"}
+        "response": {"end_session": False, "text": "Секунду…"},
     }
 
     # 3) приветствие при первом запуске без текста
@@ -84,5 +89,8 @@ async def post(request: Request):
     except asyncio.TimeoutError:
         res["response"]["text"] = "Не успеваю за 2 секунды. Скажи вопрос покороче."
     except Exception as e:
-        # логируем, чтобы сразу
+        # логируем, чтобы сразу видеть первопричину (model_not_found / invalid_api_key / quota и т. п.)
+        print("[OPENAI ERROR]", repr(e))
+        res["response"]["text"] = "Техническая заминка. Скажи ещё раз покороче."
 
+    return JSONResponse(res, status_code=200)

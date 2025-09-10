@@ -79,7 +79,7 @@ async def handle_dialog(res,req):
                 del session_state['message']
                 reply = f'Отвечаю на предыдущий вопрос "{old_request}"\n {answer}'
     else:
-        reply = 'Я умный chat бот. Спроси что-нибудь'
+        reply = 'Я учитель английского языка'
         ## Если это первое сообщение — представляемся
     res['response']['text'] = reply
     print('end handle:', datetime.datetime.now(tz=None))

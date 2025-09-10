@@ -16,7 +16,7 @@ TIMEOUT_SECONDS = float(os.getenv("TIMEOUT_SECONDS", "2.2"))
 SYSTEM_PROMPT = os.getenv(
     "SYSTEM_PROMPT",
     "Ты — добрый учитель английского для детей 6–10 лет. "
-    "Говори очень кратко и понятно (1–2 предложения), без длинных списков и преамбул."
+    "Говори довольно кратко и понятно (2–4 предложения), без длинных списков и преамбул."
 )
 
 
@@ -62,12 +62,12 @@ async def post(request: Request):
     user_text = ((req.get("request") or {}).get("original_utterance") or "").strip()
 
     if is_new and not user_text:
-        res["response"]["text"] = "Привет! Я твой учитель английского. Задавай вопрос — отвечу коротко."
+        res["response"]["text"] = "Привет! Я твой учитель английского. Задавай вопрос!"
         return JSONResponse(res, status_code=200)
 
     # 4) если текст пуст — просим уточнить
     if not user_text:
-        res["response"]["text"] = "Скажи вопрос про английский — отвечу в двух предложениях."
+        res["response"]["text"] = "Скажи вопрос про английский!"
         return JSONResponse(res, status_code=200)
 
     # 5) обрезаем «Алиса …» в начале
@@ -79,7 +79,7 @@ async def post(request: Request):
     prompt = (
         f"{SYSTEM_PROMPT}\n\n"
         f"Вопрос ученика: {user_text}\n\n"
-        f"Ответь максимально кратко: 1–2 предложения, простыми словами."
+        f"Ответь кратко: 2–4 предложения, простыми словами."
     )
 
     # 7) один прямой вызов модели с жёстким таймаутом

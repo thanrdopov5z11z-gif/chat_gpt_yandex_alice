@@ -54,13 +54,12 @@ async def post(request: Request):
     )
 
     # Прямой вызов модели с жестким таймаутом (НЕТ фоновых задач)
-    try:
-        answer = await asyncio.wait_for(gpt.aquery(prompt), timeout=TIMEOUT_SECONDS)
-        # Доп. обрезка на всякий случай
-        res["response"]["text"] = (answer or "Готово.").strip()[:350]
-    except asyncio.TimeoutError:
-        res["response"]["text"] = "Не успеваю за 2 секунды. Скажи вопрос покороче."
-    except Exception:
-        res["response"]["text"] = "Техническая заминка. Скажи ещё раз покороче."
-
-    return JSONResponse(res, status_code=200)
+try:
+    answer = await asyncio.wait_for(gpt.aquery(prompt), timeout=TIMEOUT_SECONDS)
+    res["response"]["text"] = (answer or "Готово.").strip()[:350]
+except asyncio.TimeoutError:
+    res["response"]["text"] = "Не успеваю за 2 секунды. Скажи вопрос покороче."
+except Exception as e:
+    # чтобы видеть причину в логах (model not found / invalid_api_key / quota и т.д.)
+    print("[OPENAI ERROR]", repr(e))
+    res["response"]["text"] = "Техническая заминка. Скажи ещё раз покороче."

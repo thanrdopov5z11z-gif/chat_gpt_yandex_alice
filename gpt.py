@@ -1,12 +1,12 @@
 # gpt.py
 import os
 import asyncio
-from typing import List, Dict, Union  # <-- ДОБАВЬ
+from typing import List, Dict, Union
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 
-MODEL = os.getenv("OPENAI_MODEL", os.getenv("MODEL", "gpt-4o-mini"))
-MAX_TOKENS = int(os.getenv("MAX_TOKENS", "260"))  # <-- БЫЛО 160
+MODEL = os.getenv("OPENAI_MODEL", os.getenv("MODEL", "gpt-4o-mini"))  # можно поменять на gpt-5-nano
+MAX_TOKENS = int(os.getenv("MAX_TOKENS", "260"))
 
 Message = Dict[str, str]  # {"role": "system"|"user"|"assistant", "content": "..."}
 
@@ -15,8 +15,8 @@ try:
     from openai import AsyncOpenAI
     client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
-    async def aquery(prompt_or_messages: Union[str, List[Message]]) -> str:  # <-- БЫЛО prompt: str
-        # --- ВАЖНО: поддержка либо строки, либо списка сообщений
+    async def aquery(prompt_or_messages: Union[str, List[Message]]) -> str:
+        # Принимаем либо строку, либо список сообщений (для контекста)
         if isinstance(prompt_or_messages, list):
             messages = prompt_or_messages
         else:
@@ -38,7 +38,7 @@ except Exception:
     import openai
     openai.api_key = OPENAI_API_KEY
 
-    def _sync_query(prompt_or_messages: Union[str, List[Message]]) -> str:  # <-- БЫЛО prompt: str
+    def _sync_query(prompt_or_messages: Union[str, List[Message]]) -> str:
         if isinstance(prompt_or_messages, list):
             messages = prompt_or_messages
         else:
@@ -54,6 +54,6 @@ except Exception:
         )
         return r["choices"][0]["message"]["content"].strip()
 
-    async def aquery(prompt_or_messages: Union[str, List[Message]]) -> str:  # <-- БЫЛО prompt: str
+    async def aquery(prompt_or_messages: Union[str, List[Message]]) -> str:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _sync_query, prompt_or_messages)

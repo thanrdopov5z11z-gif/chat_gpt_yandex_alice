@@ -16,7 +16,7 @@ try:
         r = await client.chat.completions.create(
             model=MODEL,
             messages=[
-                {"role": "system", "content": "Отвечай максимально кратко и по делу."},
+                {"role": "system", "content": "Отвечай достаточно развернуто но кратко и по делу."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.6,
@@ -33,7 +33,7 @@ except Exception:
         r = openai.ChatCompletion.create(
             model=MODEL,
             messages=[
-                {"role": "system", "content": "Отвечай максимально кратко и по делу."},
+                {"role": "system", "content": "Отвечай достаточно развернуто но кратко и по делу."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.6,

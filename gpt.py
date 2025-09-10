@@ -1,11 +1,14 @@
-# gpt.py — работает и с новым, и со старым SDK openai
-import os, asyncio
+# gpt.py
+import os
+import asyncio
+
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-MODEL = os.getenv("OPENAI_MODEL", os.getenv("MODEL", "gpt-4o-mini"))
+
+MODEL = os.getenv("OPENAI_MODEL", os.getenv("MODEL", "gpt-4o-mini"))  # начни с 4o-mini; потом можно gpt-5-nano
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "160"))
 
+# Попытка №1: новый SDK (openai>=1.x)
 try:
-    # новый SDK
     from openai import AsyncOpenAI
     client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
@@ -22,7 +25,7 @@ try:
         return (r.choices[0].message.content or "").strip()
 
 except Exception:
-    # старый SDK
+    # Попытка №2: старый SDK (openai<1.0)
     import openai
     openai.api_key = OPENAI_API_KEY
 
@@ -41,4 +44,3 @@ except Exception:
     async def aquery(prompt: str) -> str:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _sync_query, prompt)
-

@@ -26,14 +26,11 @@ SYSTEM_PROMPT = os.getenv(
 
 CUT_WORD = ['Алиса', 'алиса']
 
-# Глобальные in-memory структуры (на один процесс)
+# In-memory (на один процесс)
 answers: Dict[str, str] = {}          # pending_key -> готовый ответ
-users_state: Dict[str, Dict] = {}     # per session_id
+users_state: Dict[str, Dict] = {}     # per session_id: {messages: List[str], pending_key: Optional[str]}
 
 # ====== helpers ======
-def _suggest_buttons(titles: List[str]):
-    return [{"title": t, "hide": True} for t in titles[:5]]
-
 def _trim_history(msgs: List[str], keep: int) -> List[str]:
     if not msgs:
         return []
@@ -91,15 +88,10 @@ async def handle_dialog(res, req):
 
     if is_new and not utterance:
         res['response']['text'] = (
-            "Привет! Я твой учитель английского. "
-            "Можем переводить слова и фразы, объяснять правила и тренировать произношение. "
-            "Скажи: «переведи …» или «как сказать …»."
+            "Привет! Я твой учитель английского языка. "
+            "Задавай вопросы или проси объяснить правило — отвечу кратко и понятно."
         )
-        res['response']['tts'] = (
-            "Привет! Я твой учитель английского. "
-            "Скажи: переведи — или — как сказать."
-        )
-        res['response']['buttons'] = _suggest_buttons(["Переведи", "Повтори"])
+        # можно добавить подсказки, но по просьбе — без дополнительных режимов
         print('end handle (welcome):', datetime.datetime.now())
         return
 
@@ -110,4 +102,74 @@ async def handle_dialog(res, req):
 
     low = utterance.lower()
 
-    # стоп
+    # стоп-слова
+    if low in {"стоп", "выход", "хватит", "пока"}:
+        res['response']['text'] = "Пока! Приходи ещё заниматься."
+        res['response']['end_session'] = True
+        print('end handle (bye):', datetime.datetime.now())
+        return
+
+    # если есть незавершённый ответ — пробуем его отдать в начале хода
+    pending_key = st.get('pending_key')
+    if pending_key:
+        ready = answers.get(pending_key)
+        if ready:
+            res['response']['text'] = ready
+            answers.pop(pending_key, None)
+            st['pending_key'] = None
+            if utterance:
+                st['messages'] = _trim_history(st['messages'] + [utterance], HISTORY_TURNS)
+            print('end handle (deliver pending):', datetime.datetime.now())
+            return
+        else:
+            if "продолж" in low:
+                res['response']['text'] = "Ещё чуть-чуть… Скажи «продолжить» через секунду."
+                print('end handle (pending not ready):', datetime.datetime.now())
+                return
+            # иначе продолжаем — это новый вопрос; старый ответ доготовится и будет доступен по «продолжить»
+
+    # ====== GPT с таймаутом и отложенной доставкой ======
+    msgs: List[str] = _trim_history(st.get('messages', []), HISTORY_TURNS)
+
+    # уникальный ключ ожидания
+    pending_key = f"{session_id}:{int(time.time()*1000)}"
+    st['pending_key'] = pending_key
+
+    # запускаем генерацию в фоне
+    task = asyncio.create_task(_ask_and_store(pending_key, utterance, msgs))
+
+    try:
+        # ждём максимум ~1.9 с — если успеет, отдадим сразу
+        await asyncio.wait_for(task, timeout=1.9)
+        ready = answers.get(pending_key)
+        if ready:
+            res['response']['text'] = ready
+            answers.pop(pending_key, None)
+            st['pending_key'] = None
+        else:
+            # теоретически не должно случиться, но на всякий случай
+            res['response']['text'] = "Готовлю ответ. Скажи «продолжить» через секунду."
+    except asyncio.TimeoutError:
+        # мягкий фолбэк, без дополнительных кнопок/режимов
+        res['response']['text'] = "Хороший вопрос! Дай секундочку… Скажи «продолжить», и я договорю."
+    finally:
+        if utterance:
+            st['messages'] = _trim_history(st['messages'] + [utterance], HISTORY_TURNS)
+
+    print('end handle (gpt branch):', datetime.datetime.now())
+
+async def _ask_and_store(pending_key: str, user_text: str, history: List[str]):
+    """Запрос к GPT с учительской установкой. Результат кладём в answers[pending_key]."""
+    try:
+        teacher_prefix = (
+            SYSTEM_PROMPT
+            + "\n\nОтвечай очень кратко: максимум 1–2 предложения, простыми словами, без лишних преамбул."
+        )
+        compound_request = f"{teacher_prefix}\n\nВопрос ученика: {user_text}"
+        reply = await gpt.aquery(compound_request, history)
+    except Exception:
+        traceback.print_exc()
+        reply = "Немного сложновато. Давай попробуем ещё раз коротко?"
+    answers[pending_key] = reply
+    return reply
+

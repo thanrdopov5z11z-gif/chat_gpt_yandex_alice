@@ -1,22 +1,16 @@
-# gpt.py
-import os
-import asyncio
-
+# gpt.py — работает и с новым, и со старым SDK openai
+import os, asyncio
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-
-# модель и длина ответа
-MODEL = os.getenv("OPENAI_MODEL", os.getenv("MODEL", "gpt-4o-mini"))  # начни с 4o-mini, потом попробуешь gpt-5-nano
+MODEL = os.getenv("OPENAI_MODEL", os.getenv("MODEL", "gpt-4o-mini"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "160"))
 
-# ---- Путь 1: новый SDK (openai>=1.x) ----
-# pip install --upgrade openai
 try:
-    from openai import AsyncOpenAI  # новый клиент
-    _client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    # новый SDK
+    from openai import AsyncOpenAI
+    client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
     async def aquery(prompt: str) -> str:
-        # минимальный, быстрый вызов
-        resp = await _client.chat.completions.create(
+        r = await client.chat.completions.create(
             model=MODEL,
             messages=[
                 {"role": "system", "content": "Отвечай максимально кратко и по делу."},
@@ -25,27 +19,26 @@ try:
             temperature=0.6,
             max_tokens=MAX_TOKENS,
         )
-        return (resp.choices[0].message.content or "").strip()
+        return (r.choices[0].message.content or "").strip()
 
 except Exception:
-    # ---- Путь 2: старый SDK (openai<1.0) ----
-    # работает даже если у тебя старая библиотека
+    # старый SDK
     import openai
     openai.api_key = OPENAI_API_KEY
 
+    def _sync_query(prompt: str) -> str:
+        r = openai.ChatCompletion.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": "Отвечай максимально кратко и по делу."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.6,
+            max_tokens=MAX_TOKENS,
+        )
+        return r["choices"][0]["message"]["content"].strip()
+
     async def aquery(prompt: str) -> str:
         loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _sync_query, prompt)
 
-        def _call():
-            resp = openai.ChatCompletion.create(
-                model=MODEL,
-                messages=[
-                    {"role": "system", "content": "Отвечай максимально кратко и по делу."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.6,
-                max_tokens=MAX_TOKENS,
-            )
-            return resp["choices"][0]["message"]["content"].strip()
-
-        return await loop.run_in_executor(None, _call)
